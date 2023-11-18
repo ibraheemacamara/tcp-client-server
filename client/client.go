@@ -49,35 +49,57 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//read command from user
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Please enter 'get <filename>' or 'send <directory path>' to transfer files to the server\n\n")
-	input, _ := reader.ReadString('\n')
-	cmds := strings.Split(input, " ")
+	for {
+		//read command from user
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Please enter 'get <filename>' or 'send <directory path>' to transfer files to the server\n\n")
+		input, _ := reader.ReadString('\n')
+		cmds := strings.Split(input, " ")
 
-	if cmds[0] == types.CMD_CLIENT_GET {
-		fileBytes, proof, err := getFileAndProofFromServer(cmds[1], connection)
-		fmt.Println(err)
-		if err != nil {
-			log.Printf("failed to get file: %v", err.Error())
-			return
-		}
+		if cmds[0] == types.CMD_CLIENT_GET {
+			fileBytes, proof, err := getFileAndProofFromServer(cmds[1], connection)
+			fmt.Println(err)
+			if err != nil {
+				log.Printf("failed to get file: %v", err.Error())
+				return
+			}
 
-		if isValid(proof, fileBytes) {
-			log.Println("File is correct !!!")
+			if isValid(proof, fileBytes) {
+				log.Println("File is correct !!!")
+			} else {
+				log.Println("File is not correct !!!")
+			}
+
+		} else if cmds[0] == types.CMD_CLIENT_SEND {
+			sendFileToServer(cmds[1], connection)
+			log.Println("Files succesfuly sent to server")
 		} else {
-			log.Println("File is not correct !!!")
+			fmt.Println("Bad Command")
 		}
-
-	} else if cmds[0] == types.CMD_CLIENT_SEND {
-		sendFileToServer(cmds[1], connection)
-	} else {
-		fmt.Println("Bad Command")
 	}
 }
 
 func getFileAndProofFromServer(fileName string, con net.Conn) ([]byte, merkletree.Proof, error) {
 	defer con.Close()
+
+	fileBuffer := make([]byte, types.BUFFER_SIZE)
+
+	con.Write([]byte("get " + fileName))
+	for {
+
+		con.Read(fileBuffer)
+		// cleanedFileBuffer := bytes.Trim(fileBuffer, "\x00")
+		// fmt.Println(cleanedFileBuffer)
+
+		// _, err = file.WriteAt(cleanedFileBuffer, currentByte)
+
+		// currentByte += BUFFER_SIZE
+
+		// if err == io.EOF {
+		// 	break
+		// }
+
+	}
 
 	return nil, merkletree.Proof{}, nil
 }

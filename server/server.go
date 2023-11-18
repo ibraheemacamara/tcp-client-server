@@ -10,6 +10,7 @@ import (
 
 	"github.com/ibraheemacamara/tcp-client-server/db"
 	"github.com/ibraheemacamara/tcp-client-server/types"
+	"github.com/ibraheemacamara/tcp-client-server/utils"
 )
 
 var dbClient = &db.DbClient{}
@@ -61,7 +62,7 @@ func handleClientConnection(con net.Conn) {
 		return
 	}
 
-	log.Printf("received command from client: %v", string(buffer))
+	//log.Printf("received command from client: %v", string(buffer))
 
 	cleanedBuffer := bytes.Trim(buffer, "\x00")
 	cmdStrings := strings.TrimSpace(string(cleanedBuffer))
@@ -69,17 +70,17 @@ func handleClientConnection(con net.Conn) {
 
 	if cmdList[0] == types.CMD_CLIENT_SEND {
 		log.Println("received save file command")
-		saveFile(cmdList[1], []byte(cmdList[2]), con)
+		saveClientFiles(cmdList[1], buffer, con)
 	} else if cmdList[0] == types.CMD_CLIENT_GET {
 		log.Println("received get file command")
-		getFile(cmdList[1], con)
+		sendFileToClient(cmdList[1], con)
 	} else {
 		log.Println("command not valid")
 		return
 	}
 }
 
-func saveFile(dirname string, data []byte, con net.Conn) {
+func saveClientFiles(dirname string, data []byte, con net.Conn) {
 	defer con.Close()
 
 	clientId := con.RemoteAddr()
@@ -89,11 +90,23 @@ func saveFile(dirname string, data []byte, con net.Conn) {
 		log.Printf("failed to save set of files %v of client %v into db: %v", dirname, clientId, err.Error())
 		return
 	}
+
+	log.Printf("files successfuly saved for client: %v", clientId)
 }
 
-func getFile(fileId string, con net.Conn) (data []byte, proof [][]byte, idxs int) {
+func sendFileToClient(fileId string, con net.Conn) {
+	log.Printf("get file %v from db", fileId)
 	clientId := con.RemoteAddr()
 	key := []byte(fmt.Sprintf("%v%v", clientId, fileId))
-	dbClient.Put(key, []byte{}) //TODO save data
-	return nil, nil, 0
+	dbClient.Put(key, []byte{})
+	data, err := dbClient.Get(key)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	unzipData, err := utils.UngzipData(data)
+
+	fmt.Printf("UnZip Dataaaa: %v", string(unzipData))
+
 }
