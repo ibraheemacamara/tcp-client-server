@@ -35,6 +35,8 @@ func main() {
 
 	defer server.Close()
 
+	log.Printf("server is serving at: %v", server.Addr())
+
 	for {
 		con, err := server.Accept()
 		if err != nil {
@@ -42,7 +44,7 @@ func main() {
 			return
 		}
 
-		log.Println("connection established")
+		log.Printf("connection established with %v\n", con.RemoteAddr())
 		//handle client connection in separate thread
 		go handleClientConnection(con)
 	}
@@ -77,14 +79,14 @@ func handleClientConnection(con net.Conn) {
 	}
 }
 
-func saveFile(fileId string, data []byte, con net.Conn) {
+func saveFile(dirname string, data []byte, con net.Conn) {
 	defer con.Close()
 
 	clientId := con.RemoteAddr()
-	key := []byte(fmt.Sprintf("%v%v", clientId, fileId))
+	key := []byte(fmt.Sprintf("%v%v", clientId, dirname))
 	err := dbClient.Put(key, data)
 	if err != nil {
-		log.Printf("failed to save fileId %v of client %v into db: %v", fileId, clientId, err.Error())
+		log.Printf("failed to save set of files %v of client %v into db: %v", dirname, clientId, err.Error())
 		return
 	}
 }

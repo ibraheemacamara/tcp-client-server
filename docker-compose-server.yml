@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  server: 
+    ports:
+      - '8080:8080'
+    volumes:
+        - ./:/app/server
+    build:
+      # context: /app/server
+      dockerfile: ./server/Dockerfile
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+  # client: 
+  #   # ports:
+  #   #   - '8080:8080'
+  #   volumes:
+  #       - ./:/app/client
+  #   build:
+  #     # context: /app/client
+  #     dockerfile: ./client/Dockerfile
+  #   # command: 
+  #   #   - go run ./tcp-client-server
+  #   network_mode: host
+  #   depends_on:
+  #     - server

@@ -18,7 +18,7 @@ import (
 	"github.com/ibraheemacamara/tcp-client-server/utils"
 )
 
-var defaultDataDir = filepath.Join("$HOME", ".client")
+var homDir string
 
 func main() {
 
@@ -33,15 +33,25 @@ func main() {
 	flag.Parse()
 
 	address := fmt.Sprintf("%v:%v", *host, *port)
-	fmt.Println(address)
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
-		log.Fatalf("failed to connect cllient to server: %v", err)
+		log.Fatalf("failed to connect client to server: %v", err)
+	}
+
+	//Go user home dir
+	homDir, err = os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//create data dir
+	if err = os.MkdirAll(filepath.Join(homDir, ".tcp-client-server/client"), os.ModePerm); err != nil {
+		log.Fatal(err)
 	}
 
 	//read command from user
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Please enter 'get <filename>' or 'send <dirname>' to transfer files to the server\n\n")
+	fmt.Print("Please enter 'get <filename>' or 'send <directory path>' to transfer files to the server\n\n")
 	input, _ := reader.ReadString('\n')
 	cmds := strings.Split(input, " ")
 
@@ -74,7 +84,7 @@ func getFileAndProofFromServer(fileName string, con net.Conn) ([]byte, merkletre
 
 func sendFileToServer(dirname string, con net.Conn) {
 	defer con.Close()
-	filesDate, merkleRootHash, err := readSetOfFilesFromDir(dirname)
+	filesData, merkleRootHash, err := readSetOfFilesFromDir(dirname)
 	if err != nil {
 		log.Printf("failed to send files to server: %v \n", err.Error())
 		return
@@ -87,8 +97,8 @@ func sendFileToServer(dirname string, con net.Conn) {
 	}
 
 	//send files data to server
-	con.Write([]byte("send "))
-	con.Write(filesDate)
+	con.Write([]byte("send " + dirname))
+	con.Write(filesData)
 }
 
 // This function read files from directory
@@ -100,6 +110,7 @@ func readSetOfFilesFromDir(dirpath string) ([]byte, []byte, error) {
 
 	var files [][]byte
 
+	dirpath = strings.TrimSpace(dirpath)
 	dir, err := os.ReadDir(dirpath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read files from directory: %v", err.Error())
@@ -113,17 +124,19 @@ func readSetOfFilesFromDir(dirpath string) ([]byte, []byte, error) {
 		if file.IsDir() { //TODO allow read sub dir
 			return nil, nil, fmt.Errorf("sub dictory not allowed")
 		}
-		fileData, err := os.ReadFile(file.Name())
+
+		fpath := filepath.Join(dirpath, file.Name())
+		fileData, err := os.ReadFile(fpath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to read data from file: %v", err.Error())
 		}
 		files = append(files, fileData)
 
-		w, err := zipWriter.Create(file.Name())
+		w, err := zipWriter.Create(fpath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create zip file: %v", err.Error())
 		}
-		fileReader, err := os.Open(file.Name())
+		fileReader, err := os.Open(fpath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to open file %v: %v", file.Name(), err.Error())
 		}
@@ -131,6 +144,8 @@ func readSetOfFilesFromDir(dirpath string) ([]byte, []byte, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to copy file content to archive: %v", err.Error())
 		}
+
+		fileReader.Close()
 	}
 
 	tree, err := utils.ComputeMerkleTree(files)
@@ -138,6 +153,12 @@ func readSetOfFilesFromDir(dirpath string) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to create merkle tree: %v", err.Error())
 	}
 
+	if err := zipWriter.Flush(); err != nil {
+		return nil, nil, err
+	}
+	if err := zipWriter.Close(); err != nil {
+		return nil, nil, err
+	}
 	return buf.Bytes(), tree.RootNode.Hash, nil
 }
 
@@ -150,7 +171,8 @@ func isValid(proof merkletree.Proof, data []byte) bool {
 }
 
 func saveMerkleRootOnDisk(data []byte) error {
-	path := filepath.Join(defaultDataDir, "data.txt")
+	//filepath.Join("$HOME", ".tcp-client-server/client")
+	path := filepath.Join(homDir, ".tcp-client-server/client", "data.txt") //TODO add client id to file
 	file, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("failed to save data on disk: %v", err.Error())
@@ -167,7 +189,8 @@ func saveMerkleRootOnDisk(data []byte) error {
 }
 
 func readMerkleRootHashFromDisk() ([]byte, error) {
-	path := filepath.Join(defaultDataDir, "data.txt")
+	filepath.Join("$HOME", ".tcp-client-server/client")
+	path := filepath.Join(homDir, "data.txt") //TODO add client id to file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return []byte{}, fmt.Errorf("failed to read data from disk: %v", err.Error())

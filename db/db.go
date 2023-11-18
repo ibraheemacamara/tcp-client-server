@@ -2,6 +2,9 @@ package db
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -11,10 +14,22 @@ type DbClient struct {
 }
 
 func InitDblient() (*DbClient, error) {
-	d, err := leveldb.OpenFile("path/to/db", nil)
+	//Go user home dir
+	homDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	dbDir := filepath.Join(homDir, ".tcp-client-server/server/db")
+	if err := os.MkdirAll(dbDir, os.ModePerm); err != nil {
+		return nil, fmt.Errorf("failed to create db directory: %v", err)
+	}
+	d, err := leveldb.OpenFile(dbDir, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init db: %v", err)
 	}
+
+	log.Printf("db is created at: %v\n", dbDir)
 
 	return &DbClient{
 		db: d,
